@@ -449,4 +449,4 @@ Contributions are welcome! Please open an issue to discuss what you'd like to ch
 
 ## License
 
-[Apache 2.0](LICENSE) — © 2025 OpenSensa Team
+[Apache 2.0](LICENSE) — Copyright © 2025 CapsicoHealth Inc.
