@@ -43,28 +43,18 @@ Most agent frameworks require you to learn complex SDKs, write pages of boilerpl
 ### Installation
 
 ```bash
-pip install opensensa
+mkdir my-project && cd my-project
+uv init
+uv add opensensa
+opensensa init .
 ```
 
-Or install from source:
-
-```bash
-git clone https://github.com/opensensa/opensensa.git
-cd opensensa
-pip install -e .
-```
-
-### Create a Project
-
-```bash
-opensensa init my-project
-cd my-project
-```
-
-This scaffolds:
+This gives you a project with your own `pyproject.toml` and `uv.lock`, plus the OpenSensa scaffold:
 
 ```
 my-project/
+├── pyproject.toml        # Your project — add any dependencies here
+├── uv.lock               # Locked dependency versions
 ├── opensensa.yaml        # Model endpoints, server ports, directories
 ├── .env                  # API keys (gitignored)
 ├── agents/
@@ -74,6 +64,23 @@ my-project/
     ├── csv_formatter.py
     └── generate_visualization.py
 ```
+
+Need extra packages for your custom tools? Just add them:
+
+```bash
+uv add pandas sqlalchemy httpx
+```
+
+<details>
+<summary><strong>Install from source (for contributors)</strong></summary>
+
+```bash
+git clone https://github.com/opensensa/opensensa.git
+cd opensensa
+uv pip install -e ".[dev]"
+```
+
+</details>
 
 ### Configure Your Model
 
@@ -217,6 +224,23 @@ Generate a tool skeleton:
 
 ```bash
 opensensa add-tool my_new_tool
+```
+
+### Adding Custom Dependencies to Tools
+
+If your custom tools need third-party packages (e.g., `pandas`, `requests`, `sqlalchemy`), just add them to your project:
+
+```bash
+uv add pandas sqlalchemy
+```
+
+Since you set up your project with `uv init` + `uv add opensensa` (see [Installation](#installation)), all dependencies are tracked in your own `pyproject.toml` and `uv.lock` — you never modify OpenSensa's source.
+
+Always run OpenSensa through your project's environment:
+
+```bash
+uv run opensensa chat
+uv run opensensa serve
 ```
 
 ## Multi-Agent Delegation
@@ -377,7 +401,7 @@ Run `opensensa serve --web` and open `http://localhost:8000/web`:
 ```bash
 git clone https://github.com/opensensa/opensensa.git
 cd opensensa
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 ```
 
 ### Running Tests
@@ -446,6 +470,35 @@ Contributions are welcome! Please open an issue to discuss what you'd like to ch
 3. Make your changes and add tests
 4. Run `pytest` and `ruff check src/ tests/`
 5. Submit a pull request
+
+## Privacy, Security & Cost
+
+OpenSensa is a **local-first framework** — it runs on your machine, and you control where your data goes. However, there are important considerations:
+
+### Data & Privacy
+
+- **LLM API calls transmit data externally.** When you configure an LLM endpoint (e.g., OpenAI, Groq, Together), all prompts, tool outputs, and agent conversations are sent to that provider. Review your LLM provider's data retention and privacy policies before sending sensitive or regulated data.
+- **Local models keep data on your machine.** If you use a local endpoint (Ollama, vLLM, LM Studio), no data leaves your infrastructure.
+- **Logs may contain sensitive content.** Structured JSON logs (`logs/opensensa.jsonl`) capture prompts, responses, tool inputs/outputs, and token usage. Treat log files as sensitive and do not commit them to version control.
+- **OpenSensa does not collect telemetry.** No usage data, analytics, or crash reports are sent to CapsicoHealth or any third party.
+
+### Security
+
+- **API keys are your responsibility.** Store keys in `.env` files (gitignored by default) or environment variables — never hard-code them in `opensensa.yaml` or agent files.
+- **Tools execute arbitrary code.** Custom tools in your `tools/` directory run with the same permissions as the OpenSensa process. Only run tools you trust. Review any third-party tool code before adding it to your project.
+- **Agent-generated code is not sandboxed.** If an agent or tool generates and executes code, it runs with full local permissions. Exercise caution with tools that perform file system operations, network calls, or shell commands.
+- **Network exposure in serve mode.** `opensensa serve` binds to `0.0.0.0` by default, exposing agent endpoints on your network. For local-only use, set `server.host: 127.0.0.1` in `opensensa.yaml`. There is no built-in authentication — do not expose to the public internet without adding your own auth layer (reverse proxy, API gateway, etc.).
+
+### Cost
+
+- **LLM API usage incurs costs.** Every agent turn, tool call, and delegation triggers one or more LLM API calls. Multi-agent delegation chains can multiply costs quickly — an agent delegating to 3 sub-agents, each making multiple LLM calls, can consume significantly more tokens than a single-agent setup.
+- **Token usage is logged.** Check `logs/opensensa.jsonl` or the live call graph for per-call token counts to monitor usage.
+- **You are solely responsible for all costs** incurred through your configured LLM providers. OpenSensa does not manage, limit, or cap API spend. Set spending limits directly with your LLM provider.
+- **Local models are free to run** but require appropriate hardware.
+
+### Disclaimer
+
+OpenSensa is provided **"as is"** under the [Apache 2.0 License](LICENSE), without warranty of any kind. CapsicoHealth Inc. is not responsible for any costs, data exposure, security incidents, or damages arising from the use of this software. Users are solely responsible for their configuration choices, API key management, data handling practices, and compliance with applicable laws and regulations. See the [LICENSE](LICENSE) file for full terms.
 
 ## License
 
