@@ -1,0 +1,53 @@
+# ===========================================================================
+# Copyright (C) 2025 CapsicoHealth Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ===========================================================================
+
+# OpenSensa Configuration
+# Copy this to opensensa.yaml and customize for your project.
+
+models:
+  # The default model used when an agent specifies model: ${default} or omits model
+  default: my-model
+  registry:
+    my-model:
+      base_url: https://api.openai.com/v1   # Any OpenAI-compatible endpoint
+      api_key: ${OPENAI_API_KEY}             # Environment variable interpolation
+      model_name: gpt-4.1-mini
+    # Example: local Ollama
+    # local-llama:
+    #   base_url: http://localhost:11434/v1
+    #   api_key: none
+    #   model_name: llama3.3
+
+server:
+  host: 0.0.0.0
+  orchestrator_port: 8000   # A2A agent server
+  mcp_port: 8001            # MCP tool server
+
+agents:
+  directory: ./agents/       # Where agent .md files live
+
+tools:
+  directory: ./tools/        # Where tool .py files live
+  builtin: true              # Include bundled example tools
+
+# Remote A2A agents to discover
+# remote_agents:
+#   - url: https://researcher-service.example.com
+#   - url: http://localhost:9001
+
+logging:
+  level: info                # debug, info, warning, error
+  # file: ./logs/opensensa.jsonl  # Optional: structured JSON log file

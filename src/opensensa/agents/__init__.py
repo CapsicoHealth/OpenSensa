@@ -1,0 +1,30 @@
+# ===========================================================================
+# Copyright (C) 2025 CapsicoHealth Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ===========================================================================
+
+"""Bundled agent definitions — markdown files with YAML frontmatter.
+
+These are the default agents copied into user projects on `opensensa init`.
+The actual agent files live alongside this __init__.py as .md files.
+"""
+
+from pathlib import Path
+
+AGENTS_DIR = Path(__file__).parent
+
+
+def list_bundled_agents() -> list[Path]:
+    """Return paths to all bundled agent .md files."""
+    return sorted(AGENTS_DIR.glob("*.md"))

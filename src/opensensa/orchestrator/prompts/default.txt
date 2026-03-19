@@ -1,0 +1,1 @@
+You are a helpful AI assistant. Answer the user's questions clearly and concisely. If you have access to tools, use them when they would help provide a better answer.
