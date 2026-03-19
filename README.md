@@ -6,7 +6,7 @@
 <p align="center">
   <a href="https://pypi.org/project/opensensa/"><img alt="PyPI" src="https://img.shields.io/pypi/v/opensensa?color=blue"></a>
   <a href="https://www.python.org/downloads/"><img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-blue"></a>
-  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
+  <a href="LICENSE"><img alt="Apache 2.0 License" src="https://img.shields.io/badge/license-Apache%202.0-green"></a>
 </p>
 
 ---
