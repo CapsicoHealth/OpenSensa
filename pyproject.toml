@@ -26,9 +26,9 @@ readme = "README.md"
 license = {file = "LICENSE"}
 requires-python = ">=3.10"
 authors = [
-    { name = "Capsico Team" },
+    { name = "CapsicoHealth Inc. Team" },
 ]
-keywords = ["ai", "agents", "a2a", "mcp", "llm", "cli"]
+keywords = ["ai", "agents", "a2a", "mcp", "llm", "cli", "capsico", "capsicohealth", "healthcare"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
