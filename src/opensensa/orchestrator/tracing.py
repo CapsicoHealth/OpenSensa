@@ -55,13 +55,6 @@ class AgentSpan:
         self.metadata.update(extra_metadata)
         self._emit_log()
 
-    def add_event(self, event_type: str, data: Any = None):
-        self.events.append({
-            "type": event_type,
-            "timestamp_ms": int(time.time() * 1000),
-            "data": data,
-        })
-
     def _emit_log(self):
         """Emit structured JSON log for this span."""
         entry = {
@@ -124,11 +117,3 @@ class AgentTraceContext:
         self._spans.append(span)
         self._active_span = span
         return span
-
-    @property
-    def active_span(self) -> Optional[AgentSpan]:
-        return self._active_span
-
-    @property
-    def spans(self) -> list[AgentSpan]:
-        return self._spans.copy()

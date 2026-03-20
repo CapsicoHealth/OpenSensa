@@ -357,6 +357,7 @@ class TestDelegate:
 
     def _make_agent_def(self, sub_agents=None):
         """Create a minimal AgentDefinition-like object for testing."""
+        from pathlib import Path
         from opensensa.orchestrator.agent_registry import AgentDefinition
         return AgentDefinition(
             name="caller-agent",
@@ -365,7 +366,11 @@ class TestDelegate:
             model="test-model",
             tools=[],
             sub_agents=sub_agents or [],
-            source_file=None,
+            skills=[],
+            input_modes=["text/plain"],
+            output_modes=["text/plain"],
+            context_headers=[],
+            source_path=Path("/dev/null"),
         )
 
     @pytest.mark.asyncio

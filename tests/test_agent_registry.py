@@ -61,7 +61,7 @@ You are a test agent. Do testing things.
         assert defn.skills[0].tags == ["test"]
         assert defn.input_modes == ["text/plain"]
         assert defn.output_modes == ["text/plain", "application/json"]
-        assert defn.context_headers == {"X-Tenant-Id": "acme"}
+        assert defn.context_headers == ["X-Tenant-Id"]
         assert "You are a test agent" in defn.system_prompt
         assert "---" not in defn.system_prompt  # Frontmatter should not leak
 

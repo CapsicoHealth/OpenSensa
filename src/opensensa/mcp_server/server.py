@@ -28,25 +28,6 @@ from typing import Optional
 _mcp_instance = None
 
 
-def get_mcp():
-    """Get the current MCP server instance.
-
-    Tools import this to register themselves:
-        from opensensa.mcp_server.server import get_mcp
-        mcp = get_mcp()
-
-        @mcp.tool(...)
-        def my_tool(...):
-            ...
-    """
-    if _mcp_instance is None:
-        raise RuntimeError(
-            "MCP server not initialized. Call create_mcp_server() first, "
-            "or use `opensensa serve` which does this automatically."
-        )
-    return _mcp_instance
-
-
 def create_mcp_server(
     host: str = "0.0.0.0",
     port: int = 8001,

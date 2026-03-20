@@ -22,14 +22,14 @@ from pathlib import Path
 
 import pytest
 
-from opensensa.config import OpenSensaConfig, load_config, resolve_model
+from opensensa.config import AppConfig, load_config, resolve_model
 
 
 def test_default_config():
     """Loading with no file should return valid defaults."""
     with tempfile.TemporaryDirectory() as tmpdir:
         config = load_config(project_dir=tmpdir)
-        assert isinstance(config, OpenSensaConfig)
+        assert isinstance(config, AppConfig)
         assert config.server.mcp_port == 8001
         assert config.server.orchestrator_port == 8000
 
@@ -80,7 +80,7 @@ models:
 
 def test_resolve_model():
     """resolve_model should look up models by name and handle 'default'."""
-    config = OpenSensaConfig.model_validate({
+    config = AppConfig.model_validate({
         "models": {
             "default": "my-model",
             "registry": {

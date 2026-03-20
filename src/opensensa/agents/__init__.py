@@ -19,12 +19,3 @@
 These are the default agents copied into user projects on `opensensa init`.
 The actual agent files live alongside this __init__.py as .md files.
 """
-
-from pathlib import Path
-
-AGENTS_DIR = Path(__file__).parent
-
-
-def list_bundled_agents() -> list[Path]:
-    """Return paths to all bundled agent .md files."""
-    return sorted(AGENTS_DIR.glob("*.md"))

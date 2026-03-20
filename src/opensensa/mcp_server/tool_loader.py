@@ -84,12 +84,3 @@ def discover_and_load_tools(tools_directory: str | Path, mcp_instance=None) -> l
 
     logger.info(f"Discovered {len(loaded)} tool module(s) from {tools_dir}")
     return loaded
-
-
-def load_bundled_tools(mcp_instance=None) -> list[str]:
-    """Load the bundled example tools shipped with OpenSensa.
-
-    These live in src/opensensa/tools/ and are always available unless disabled.
-    """
-    bundled_dir = Path(__file__).parent.parent / "tools"
-    return discover_and_load_tools(bundled_dir, mcp_instance)
