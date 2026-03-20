@@ -1,3 +1,6 @@
+# OpenSensa Architecture
+
+```mermaid
 flowchart TD
     subgraph Entry["Entry Points"]
         CLI["CLI: <b>opensensa chat</b><br/><i>cli.py</i>"]
@@ -102,3 +105,4 @@ flowchart TD
     style Delegation fill:#ffccbc,stroke:#d84315
     style Observability fill:#e0e0e0,stroke:#616161
     style Output fill:#c8e6c9,stroke:#388e3c
+```
