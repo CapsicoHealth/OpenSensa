@@ -1,0 +1,231 @@
+/* ===========================================================================
+ * Copyright (C) 2025 CapsicoHealth Inc. — Apache-2.0
+ * =========================================================================== */
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+/* Tokens used: --sidebar-w, --surface, --border-light, --text-muted,
+   --accent, --accent-bg, --success, --success-bg, --text, --text-faint,
+   --surface-hover, --surface-alt, --text-mid, --radius-xs, --shadow-lg,
+   --border */
+
+.sidebar {
+    flex: 0 0 var(--sidebar-w);
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: flex-basis .3s cubic-bezier(.4, 0, .2, 1), width .3s cubic-bezier(.4, 0, .2, 1), box-shadow .3s ease;
+}
+
+.sidebar-header {
+    padding: 16px 18px 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sidebar-refresh-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color .2s, background .2s, transform .4s ease;
+}
+
+.sidebar-refresh-btn:hover {
+    color: var(--accent);
+    background: var(--bg-hover);
+}
+
+.sidebar-refresh-btn.spinning svg {
+    animation: spin-once .5s ease-in-out;
+}
+
+@keyframes spin-once {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.sidebar-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--text-muted);
+}
+
+.sidebar-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px 12px;
+}
+
+.sidebar-list::-webkit-scrollbar { width: 4px; }
+.sidebar-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* ── Sidebar Collapsed State ─────────────────────────────── */
+.sidebar.collapsed {
+    flex: 0 0 48px;
+    width: 48px;
+    position: relative;
+    z-index: 50;
+}
+
+.sidebar.collapsed .sidebar-header {
+    padding: 14px 0 8px;
+    display: flex;
+    justify-content: center;
+}
+
+.sidebar.collapsed .sidebar-refresh-btn { display: none; }
+
+.sidebar.collapsed .sidebar-title {
+    font-size: 0;
+    width: 20px;
+    height: 20px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+}
+
+.sidebar.collapsed .sidebar-title::after {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 2px;
+    background: var(--text-muted);
+    border-radius: 2px;
+    box-shadow: 0 5px 0 var(--text-muted), 0 10px 0 var(--text-muted);
+}
+
+.sidebar.collapsed .sidebar-list { display: none; }
+
+/* Click-expanded overlay */
+.sidebar.collapsed.expanded {
+    flex: 0 0 var(--sidebar-w);
+    width: var(--sidebar-w);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+}
+
+.sidebar.collapsed.expanded .sidebar-header {
+    padding: 16px 18px 10px;
+    justify-content: space-between;
+}
+
+.sidebar.collapsed.expanded .sidebar-title {
+    font-size: 11px;
+    width: auto;
+    height: auto;
+}
+
+.sidebar.collapsed.expanded .sidebar-title::after { display: none; }
+.sidebar.collapsed.expanded .sidebar-refresh-btn  { display: flex; }
+
+.sidebar.collapsed.expanded .sidebar-list {
+    display: block;
+    padding: 0 8px 12px;
+}
+
+.sidebar.collapsed .sidebar-header { cursor: pointer; }
+
+/* ── Sidebar Agent Entry ─────────────────────────────────── */
+.sidebar-agent {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 2px;
+    border-radius: var(--radius-xs);
+    cursor: pointer;
+    transition: background .2s ease, box-shadow .2s ease, transform .15s ease;
+    position: relative;
+    user-select: none;
+}
+
+.sidebar-agent:active { transform: scale(.98); }
+.sidebar-agent:hover  { background: var(--surface-hover); }
+
+.sidebar-agent.active {
+    background: var(--accent-bg);
+    box-shadow: inset 3px 0 0 var(--accent);
+    animation: sidebarSelect .3s ease;
+}
+
+@keyframes sidebarSelect {
+    from { background: var(--surface-hover); transform: translateX(0); }
+    40%  { transform: translateX(4px); }
+    to   { background: var(--accent-bg); transform: translateX(0); }
+}
+
+.sidebar-agent.delegating { background: var(--success-bg); }
+
+.sidebar-agent-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-faint);
+    flex-shrink: 0;
+    margin-top: 5px;
+    transition: background .3s;
+}
+
+.sidebar-agent.active .sidebar-agent-dot      { background: var(--accent); }
+.sidebar-agent.delegating .sidebar-agent-dot   { background: var(--success); }
+
+.sidebar-agent-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.sidebar-agent-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: -.15px;
+}
+
+.sidebar-agent-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: block;
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.sidebar-agent-edit {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--text-faint);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all .12s;
+    flex-shrink: 0;
+}
+
+.sidebar-agent:hover .sidebar-agent-edit { opacity: 1; }
+
+.sidebar-agent-edit:hover {
+    background: var(--surface-alt);
+    color: var(--text-mid);
+}
