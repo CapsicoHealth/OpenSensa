@@ -26,11 +26,11 @@
  * module's JSDoc header for standalone usage instructions.
  */
 
-import { Sidebar }        from "./modules/sidebar.js";
-import { ChatPanel }      from "./modules/chat-panel.js";
+import { Sidebar } from "./modules/sidebar.js";
+import { ChatPanel } from "./modules/chat-panel.js";
 import { DelegationTree } from "./modules/delegation-tree.js";
-import { AgentModal }      from "./modules/agent-modal.js";
-import { createApi }       from "./modules/api.js";
+import { AgentModal } from "./modules/agent-modal.js";
+import { createApi } from "./modules/api.js";
 
 /**
  * @typedef {Object} OpenSensaOptions
@@ -93,29 +93,29 @@ const LAYOUT = `
  * @returns {{ destroy: () => void }}
  */
 export default function mount(rootEl, options = {}) {
-    const baseUrl       = (options.baseUrl || "").replace(/\/+$/, "");
+    const baseUrl = (options.baseUrl || "").replace(/\/+$/, "");
     const storagePrefix = options.storagePrefix || "opensensa";
-    const marked        = options.marked || /** @type {any} */ (window)["marked"];
-    const hljs          = options.hljs   || /** @type {any} */ (window)["hljs"];
+    const marked = options.marked || /** @type {any} */ (window)["marked"];
+    const hljs = options.hljs || /** @type {any} */ (window)["hljs"];
 
     // ── Inject layout skeleton ───────────────────────────────
     rootEl.classList.add("root");
     rootEl.innerHTML = LAYOUT;
 
     const ref = (/** @type {string} */ n) =>
-        /** @type {HTMLElement} */ (rootEl.querySelector(`[data-ref="${n}"]`));
+        /** @type {HTMLElement} */(rootEl.querySelector(`[data-ref="${n}"]`));
 
     // ── Instantiate widgets ──────────────────────────────────
-    const api      = createApi(baseUrl);
-    const sidebar  = new Sidebar(ref("sidebar-container"));
-    const chat     = new ChatPanel(ref("chat-container"), { baseUrl, storagePrefix, marked, hljs });
-    const tree     = new DelegationTree(ref("tree-container"), { marked });
-    const modal    = new AgentModal(rootEl);
+    const api = createApi(baseUrl);
+    const sidebar = new Sidebar(ref("sidebar-container"));
+    const chat = new ChatPanel(ref("chat-container"), { baseUrl, storagePrefix, marked, hljs });
+    const tree = new DelegationTree(ref("tree-container"), { marked });
+    const modal = new AgentModal(rootEl);
 
     const treeLinkArrow = ref("tree-link-arrow");
 
-    // Per-agent state (session IDs, message history) stored in orchestrator
-    /** @type {Map<string, { sessionId: string|null, messages: Array<{role:string,content:string}>, contextHeaders: string[] }>} */
+    // Per-agent state (message history) stored in orchestrator
+    /** @type {Map<string, { messages: Array<{role:string,content:string}>, contextHeaders: string[] }>} */
     const agentState = new Map();
 
     // ── Helpers ──────────────────────────────────────────────
@@ -134,7 +134,7 @@ export default function mount(rootEl, options = {}) {
             // Store context_headers per agent
             for (const a of agentList) {
                 if (!agentState.has(a.name)) {
-                    agentState.set(a.name, { sessionId: null, messages: [], contextHeaders: a.context_headers || [] });
+                    agentState.set(a.name, { messages: [], contextHeaders: a.context_headers || [] });
                 }
             }
         } catch (err) {
@@ -177,29 +177,6 @@ export default function mount(rootEl, options = {}) {
         } catch { modal.openEdit({ name }); }
     });
 
-    /** Recursive search for a node in the SSE tree structure. */
-    function findInTree(/** @type {any[]} */ nodes, /** @type {string} */ nodeId, /** @type {any[]} */ ancestors = []) {
-        for (const n of nodes) {
-            if (n.id === nodeId) return { node: n, ancestors };
-            if (n.children?.length) {
-                const r = findInTree(n.children, nodeId, [...ancestors, n]);
-                if (r) return r;
-            }
-        }
-        return null;
-    }
-
-    /** Find the delegation ancestor for an SSE event node. */
-    function getDelegationIdForEvent(/** @type {any[]} */ sseTree, /** @type {string} */ nodeId) {
-        if (!nodeId || !sseTree) return null;
-        const r = findInTree(sseTree, nodeId);
-        if (!r) return null;
-        for (const anc of r.ancestors) {
-            if (anc.kind === "delegation" && tree.get(anc.id)) return anc.id;
-        }
-        return null;
-    }
-
     // SSE event routing — delegation and tool events go to the tree widget
     chat.on("sseEvent", (/** @type {any} */ evt) => {
         switch (evt.event) {
@@ -214,19 +191,13 @@ export default function mount(rootEl, options = {}) {
                 }
                 break;
 
-            case "tool_start": {
-                const delId = getDelegationIdForEvent(evt.tree, evt.node_id);
-                if (delId) tree.startTool({ delegationId: delId, nodeId: evt.node_id, toolName: evt.tool || "tool" });
-                else chat.showToolChip(evt.node_id, evt.tool || "tool", "running");
+            case "tool_start":
+                // Tool chips for direct (non-delegation) tools are handled
+                // inside chat-panel.js _handleA2AEvent already
                 break;
-            }
 
-            case "tool_end": {
-                const delId = getDelegationIdForEvent(evt.tree, evt.node_id);
-                if (delId) tree.endTool({ delegationId: delId, nodeId: evt.node_id, toolName: evt.tool || "tool", durationMs: evt.duration_ms });
-                else chat.showToolChip(evt.node_id, evt.tool || "tool", "complete", evt.duration_ms);
+            case "tool_end":
                 break;
-            }
 
             case "delegation_start":
                 tree.startDelegation({
@@ -242,18 +213,6 @@ export default function mount(rootEl, options = {}) {
                 tree.endDelegation({ id: evt.node_id, response: evt.response || "" });
                 updateTreeArrow();
                 break;
-
-            case "llm_start": {
-                const delId = getDelegationIdForEvent(evt.tree, evt.node_id);
-                if (!delId) chat.showThinking();
-                break;
-            }
-
-            case "llm_end": {
-                const delId = getDelegationIdForEvent(evt.tree, evt.node_id);
-                if (!delId) chat.hideThinking();
-                break;
-            }
 
             default: break;
         }

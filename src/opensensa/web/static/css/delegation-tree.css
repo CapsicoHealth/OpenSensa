@@ -25,7 +25,9 @@
     transition: opacity .3s ease;
 }
 
-.tree-link-arrow.visible { opacity: 1; }
+.tree-link-arrow.visible {
+    opacity: 1;
+}
 
 /* ── Tree Panel Container ────────────────────────────────── */
 .tree-panel {
@@ -67,8 +69,14 @@
     padding: 12px 10px 20px;
 }
 
-.tree-panel .delegation-tree::-webkit-scrollbar       { width: 4px; }
-.tree-panel .delegation-tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.tree-panel .delegation-tree::-webkit-scrollbar {
+    width: 4px;
+}
+
+.tree-panel .delegation-tree::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
 
 /* ── Delegation Tree Layout ──────────────────────────────── */
 .delegation-tree {
@@ -87,8 +95,15 @@
 }
 
 @keyframes delegationSlideIn {
-    from { opacity: 0; transform: translateY(-12px) scale(.97); }
-    to   { opacity: 1; transform: translateY(0) scale(1); }
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 /* Vertical connector */
@@ -166,11 +181,22 @@
 }
 
 @keyframes dotBreathe {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50%      { opacity: .5; transform: scale(.75); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: .5;
+        transform: scale(.75);
+    }
 }
 
-.delegation-card.completed .delegation-card-dot { background: var(--success); }
+.delegation-card.completed .delegation-card-dot {
+    background: var(--success);
+}
 
 .delegation-card-name {
     font-size: 12.5px;
@@ -193,13 +219,26 @@
     gap: 5px;
 }
 
-.delegation-card-messages::-webkit-scrollbar       { width: 3px; }
-.delegation-card-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.delegation-card-messages::-webkit-scrollbar {
+    width: 3px;
+}
 
-.delegation-card-activity { padding: 0 14px; }
-.delegation-card-activity:not(:empty) { padding: 4px 14px 8px; }
+.delegation-card-messages::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
 
-.delegation-node .delegation-node { margin-top: 0; }
+.delegation-card-activity {
+    padding: 0 14px;
+}
+
+.delegation-card-activity:not(:empty) {
+    padding: 4px 14px 8px;
+}
+
+.delegation-node .delegation-node {
+    margin-top: 0;
+}
 
 /* ── Tool chips (used inside delegation cards) ───────────── */
 /* Inherits .tool-chip, .spinner from chat.css if present;
@@ -233,7 +272,9 @@
     border: 1px solid #F5D0CD;
 }
 
-.delegation-card .tool-chip-icon { font-size: 11px; }
+.delegation-card .tool-chip-icon {
+    font-size: 11px;
+}
 
 .delegation-card .spinner {
     width: 9px;
@@ -245,7 +286,9 @@
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ── Delegation From Label ───────────────────────────────── */

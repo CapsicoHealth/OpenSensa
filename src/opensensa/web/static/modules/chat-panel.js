@@ -103,11 +103,12 @@ export class ChatPanel {
 
     // State
     /** @type {string|null} */                 _agentName = null;
-    /** @type {string|null} */                 _sessionId = null;
     /** @type {ChatMessage[]} */               _messages = [];
     /** @type {boolean} */                     _isSending = false;
     /** @type {HTMLElement|null} */             _thinkingEl = null;
     /** @type {Map<string, HTMLElement>} */     _activeTools = new Map();
+    /** @type {HTMLElement|null} */             _streamingEl = null;
+    /** @type {string} */                      _streamingText = "";
     /** @type {string[]} */                    _contextHeaders = [];
     /** @type {Record<string, Function[]>} */  _handlers = {};
     /** @type {Array<[EventTarget, string, EventListener]>} */ _listeners = [];
@@ -136,18 +137,18 @@ export class ChatPanel {
 
         this._container.innerHTML = CHAT_TEMPLATE;
 
-        const ref = (/** @type {string} */ n) => /** @type {HTMLElement} */ (this._container.querySelector(`[data-ref="${n}"]`));
-        this._emptyState       = ref("empty-state");
-        this._chatPanel        = ref("chat-panel");
-        this._chatHeader       = ref("chat-header");
-        this._chatAgentName    = ref("chat-agent-name");
-        this._chatAgentModel   = ref("chat-agent-model");
-        this._chatMessages     = ref("chat-messages");
+        const ref = (/** @type {string} */ n) => /** @type {HTMLElement} */(this._container.querySelector(`[data-ref="${n}"]`));
+        this._emptyState = ref("empty-state");
+        this._chatPanel = ref("chat-panel");
+        this._chatHeader = ref("chat-header");
+        this._chatAgentName = ref("chat-agent-name");
+        this._chatAgentModel = ref("chat-agent-model");
+        this._chatMessages = ref("chat-messages");
         this._chatMessagesInner = ref("chat-messages-inner");
-        this._chatActivity     = ref("chat-activity");
+        this._chatActivity = ref("chat-activity");
         this._contextHeadersBar = ref("context-headers-bar");
-        this._chatInput        = /** @type {HTMLInputElement} */ (ref("chat-input"));
-        this._chatSendBtn      = ref("chat-send-btn");
+        this._chatInput = /** @type {HTMLInputElement} */ (ref("chat-input"));
+        this._chatSendBtn = ref("chat-send-btn");
 
         // Bind events
         this._on(this._chatInput, "keydown", (/** @type {KeyboardEvent} */ e) => {
@@ -168,11 +169,12 @@ export class ChatPanel {
      */
     setAgent(agent, restore) {
         this._agentName = agent.name;
-        this._sessionId = null;
         this._messages = restore?.messages ? [...restore.messages] : [];
         this._isSending = false;
         this._thinkingEl = null;
         this._activeTools.clear();
+        this._streamingEl = null;
+        this._streamingText = "";
         this._contextHeaders = agent.contextHeaders || [];
 
         this._emptyState.classList.add("hidden");
@@ -226,21 +228,58 @@ export class ChatPanel {
         this.addMessage("user", msg);
 
         try {
-            const sid = await this._ensureSession();
             this.showThinking();
 
-            const extraHeaders = this._getContextHeaderValues();
-            const allHeaders = { "Content-Type": "application/json", ...extraHeaders };
+            // Build A2A JSON-RPC message/stream request
+            const contextHeaders = this._getContextHeaderValues();
+            const msgId = crypto.randomUUID();
 
-            const res = await fetch(this._baseUrl + `/api/chat/sessions/${sid}/messages`, {
-                method: "POST",
-                headers: allHeaders,
-                body: JSON.stringify({ message: msg }),
-            });
+            // Build history from prior messages for multi-turn
+            /** @type {any[]} */
+            const history = this._messages.slice(0, -1).map(m => ({
+                role: m.role === "agent" ? "agent" : m.role,
+                parts: [{ kind: "text", text: m.content }],
+            }));
+
+            /** @type {any} */
+            const params = {
+                message: {
+                    role: "user",
+                    parts: [{ kind: "text", text: msg }],
+                    messageId: msgId,
+                },
+            };
+
+            // Attach history and context headers as metadata
+            /** @type {any} */
+            const metadata = {};
+            if (history.length > 0) metadata["framework:history"] = history;
+            if (Object.keys(contextHeaders).length > 0) metadata["context_headers"] = contextHeaders;
+            if (Object.keys(metadata).length > 0) params.metadata = metadata;
+
+            const payload = {
+                jsonrpc: "2.0",
+                id: crypto.randomUUID(),
+                method: "message/stream",
+                params,
+            };
+
+            const res = await fetch(
+                this._baseUrl + `/agents/${this._agentName}/`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", ...contextHeaders },
+                    body: JSON.stringify(payload),
+                },
+            );
 
             const reader = res.body?.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
+            /** @type {number} */
+            let toolCalls = 0;
+            /** @type {number} */
+            let delegations = 0;
 
             if (reader) {
                 while (true) {
@@ -254,16 +293,37 @@ export class ChatPanel {
                         const raw = line.slice(6);
                         if (raw === "[DONE]") continue;
                         try {
-                            const evt = JSON.parse(raw);
-                            this._handleInternalSSE(evt);
-                            this._emit("sseEvent", evt);
+                            const event = JSON.parse(raw);
+                            const parsed = this._handleA2AEvent(event);
+                            if (parsed) {
+                                if (parsed.toolCalls) toolCalls += parsed.toolCalls;
+                                if (parsed.delegations) delegations += parsed.delegations;
+                                this._emit("sseEvent", parsed);
+                            }
                         } catch { /* skip malformed */ }
                     }
                 }
             }
+
+            // Finalize the streamed response
+            const response = this._streamingText;
+            this.hideThinking();
+            this._finalizeStreamingMessage();
+            if (!response) {
+                this.addMessage("agent", "Agent completed with no output.");
+            }
+            this._emit("sseEvent", {
+                event: "turn_complete",
+                response,
+                stats: { tool_calls: toolCalls, delegations },
+            });
         } catch (err) {
             this.hideThinking();
             this.addMessage("error", "Network error: " + /** @type {Error} */ (err).message);
+            this._emit("sseEvent", {
+                event: "turn_error",
+                error: /** @type {Error} */ (err).message,
+            });
         }
 
         this._isSending = false;
@@ -320,13 +380,14 @@ export class ChatPanel {
         }
     }
 
-    /** Reset the session (clears history, gets new session on next send). */
+    /** Reset the conversation (clears history). */
     reset() {
-        this._sessionId = null;
         this._messages = [];
         this._chatMessagesInner.innerHTML = "";
         this._chatActivity.innerHTML = "";
         this._activeTools.clear();
+        this._streamingEl = null;
+        this._streamingText = "";
         this.hideThinking();
     }
 
@@ -389,17 +450,121 @@ export class ChatPanel {
         this._chatMessagesInner.appendChild(div);
     }
 
-    /** @returns {Promise<string>} */
-    async _ensureSession() {
-        if (this._sessionId) return this._sessionId;
-        const res = await fetch(this._baseUrl + "/api/chat/sessions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ agent_name: this._agentName }),
-        });
-        const data = await res.json();
-        this._sessionId = data.session_id;
-        return /** @type {string} */ (this._sessionId);
+    /**
+     * Parse an A2A SSE event (JSON-RPC result) into a normalized event
+     * for the delegation tree and chat panel.
+     *
+     * A2A SSE events have this shape:
+     *   { "result": { "kind": "status-update"|"artifact-update", ... } }
+     *
+     * Returns a normalized event object or null if unhandled.
+     *
+     * @param {any} event — raw parsed JSON from SSE data line
+     * @returns {any|null}
+     */
+    _handleA2AEvent(event) {
+        const result = event?.result;
+        if (!result) return null;
+        const kind = result.kind;
+
+        if (kind === "status-update") {
+            const msg = result.status?.message || {};
+            const meta = msg.metadata || {};
+            const fwEvent = meta["framework:event"];
+
+            if (fwEvent === "tool_start") {
+                const tool = meta["framework:tool"] || "tool";
+                const nodeId = `tool:${Date.now()}`;
+                const isDelegation = tool === "delegate";
+                if (!isDelegation) {
+                    this.showToolChip(nodeId, tool, "running");
+                }
+                return {
+                    event: "tool_start",
+                    node_id: nodeId,
+                    tool,
+                    toolCalls: isDelegation ? 0 : 1,
+                    delegations: isDelegation ? 1 : 0,
+                };
+            }
+
+            if (fwEvent === "tool_end") {
+                const tool = meta["framework:tool"] || "tool";
+                return { event: "tool_end", tool };
+            }
+
+            if (fwEvent === "delegation_start") {
+                return {
+                    event: "delegation_start",
+                    node_id: `del:${Date.now()}`,
+                    from_agent: meta["framework:from_agent"] || "",
+                    to_agent: meta["framework:to_agent"] || "",
+                    message: meta["framework:message"] || "",
+                };
+            }
+
+            if (fwEvent === "delegation_end") {
+                return {
+                    event: "delegation_end",
+                    to_agent: meta["framework:to_agent"] || "",
+                    response: meta["framework:response"] || "",
+                };
+            }
+
+            return null;
+        }
+
+        if (kind === "artifact-update") {
+            const artifact = result.artifact || {};
+            const aname = artifact.name || "";
+            // Skip execution-trace artifacts
+            if (aname.endsWith("-execution-trace")) return null;
+            // Stream text parts into the live message bubble
+            for (const part of artifact.parts || []) {
+                if (part.kind === "text" && part.text) {
+                    this._appendStreamingChunk(part.text);
+                }
+            }
+            return null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Append a text chunk to the in-progress streaming message bubble.
+     * Creates the bubble on first call, hides thinking dots.
+     * @param {string} chunk
+     */
+    _appendStreamingChunk(chunk) {
+        if (!this._streamingEl) {
+            this.hideThinking();
+            const div = document.createElement("div");
+            div.className = "chat-msg agent streaming";
+            this._chatMessagesInner.appendChild(div);
+            this._streamingEl = div;
+            this._streamingText = "";
+        }
+        this._streamingText += chunk;
+        // Render plain text while streaming (markdown applied on finalize)
+        this._streamingEl.textContent = this._streamingText;
+        this._chatMessages.scrollTop = this._chatMessages.scrollHeight;
+    }
+
+    /**
+     * Finalize the streaming message — parse markdown, save to history.
+     */
+    _finalizeStreamingMessage() {
+        if (!this._streamingEl || !this._streamingText) return;
+        const text = this._streamingText;
+        // Apply markdown rendering
+        this._streamingEl.classList.remove("streaming");
+        this._streamingEl.innerHTML = this._marked ? this._marked.parse(text) : text;
+        // Save to conversation history
+        this._messages.push({ role: "agent", content: text });
+        this._streamingEl = null;
+        this._streamingText = "";
+        this._chatMessages.scrollTop = this._chatMessages.scrollHeight;
     }
 
     _renderContextHeaders() {
@@ -439,29 +604,6 @@ export class ChatPanel {
             if (name && el.value.trim()) headers[name] = el.value.trim();
         });
         return headers;
-    }
-
-    /** Handle SSE events that affect chat directly (turn_complete, turn_error, llm_start/end, tool chips in primary). */
-    /** @param {any} evt */
-    _handleInternalSSE(evt) {
-        switch (evt.event) {
-            case "turn_complete":
-                this.hideThinking();
-                if (evt.response) this.addMessage("agent", evt.response);
-                break;
-            case "turn_error":
-                this.hideThinking();
-                this.addMessage("error", evt.error || "Unknown error");
-                break;
-            case "llm_start":
-                // Only show thinking for primary agent (no delegation parent)
-                // The orchestrator handles delegation-scoped events
-                break;
-            case "llm_end":
-                break;
-            default:
-                break;
-        }
     }
 
     _clearToolChips() {

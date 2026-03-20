@@ -22,7 +22,6 @@
  * @property {(body: any) => Promise<any>} createAgent
  * @property {(name: string, body: any) => Promise<any>} updateAgent
  * @property {(name: string) => Promise<any>} deleteAgent
- * @property {(agentName: string) => Promise<string>} createSession
  */
 
 /**
@@ -67,15 +66,6 @@ export function createApi(baseUrl = "") {
         async deleteAgent(name) {
             const res = await request(`/api/agents/${name}`, { method: "DELETE" });
             return res.json();
-        },
-
-        async createSession(agentName) {
-            const res = await request("/api/chat/sessions", {
-                method: "POST",
-                body: JSON.stringify({ agent_name: agentName }),
-            });
-            const data = await res.json();
-            return data.session_id;
         },
     };
 }

@@ -20,8 +20,13 @@
 }
 
 @keyframes fadeIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 .modal {
@@ -36,8 +41,15 @@
 }
 
 @keyframes modalSlide {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .modal-header {
@@ -73,9 +85,13 @@
     color: var(--error);
 }
 
-.modal-body { padding: 18px 22px; }
+.modal-body {
+    padding: 18px 22px;
+}
 
-.form-group { margin-bottom: 14px; }
+.form-group {
+    margin-bottom: 14px;
+}
 
 .form-group label {
     display: block;
@@ -143,7 +159,9 @@
     color: var(--surface);
 }
 
-.btn-primary:hover { background: #2C2B27; }
+.btn-primary:hover {
+    background: #2C2B27;
+}
 
 .btn-ghost {
     background: none;
@@ -160,4 +178,6 @@
     color: #fff;
 }
 
-.btn-danger:hover { background: #B04840; }
+.btn-danger:hover {
+    background: #B04840;
+}

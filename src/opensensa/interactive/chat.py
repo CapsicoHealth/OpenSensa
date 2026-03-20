@@ -261,21 +261,14 @@ def _run_mcp_background(config: AppConfig) -> None:
     registry = AgentRegistry(agents_dir)
     remote_agents = [{"url": ra.url} for ra in config.remote_agents]
 
-    # Build local base URL for discover_agents
-    advertise_host = "localhost" if config.server.host == "0.0.0.0" else config.server.host
-    local_base_url = f"http://{advertise_host}:{config.server.orchestrator_port}"
-
-    from opensensa.framework_tools import create_agent, edit_agent, delete_agent, discover_agents, list_tools, send_to_agent
+    from opensensa.framework_tools import create_agent, edit_agent, delete_agent, discover_agents, list_tools
 
     discover_agents.register(
         mcp,
         agent_registry=registry,
         remote_agents=remote_agents,
-        local_base_url=local_base_url,
+        local_base_url=config.server.local_base_url,
     )
-    send_to_agent.register(mcp)
-    # NOTE: delegate is NOT registered on MCP — it is a native FunctionTool
-    # wired directly into the Agent by agent_builder.py (A2A, not MCP).
     create_agent.register(mcp, agents_directory=config.agents.directory)
     edit_agent.register(mcp, agents_directory=config.agents.directory)
     delete_agent.register(mcp, agents_directory=config.agents.directory)

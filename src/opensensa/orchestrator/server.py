@@ -114,12 +114,7 @@ def create_orchestrator_app(
     """
     app = FastAPI(title="Agent Server", version="0.1.0")
 
-    host = config.server.host
-    port = config.server.orchestrator_port
-    # Use localhost for the Agent Card URLs so local clients can reach them.
-    # For 0.0.0.0 we advertise localhost; for explicit IPs we use that.
-    advertise_host = "localhost" if host == "0.0.0.0" else host
-    base_url = f"http://{advertise_host}:{port}"
+    base_url = config.server.local_base_url
 
     if mcp_server_url is None:
         mcp_server_url = f"http://localhost:{config.server.mcp_port}/mcp"
@@ -177,7 +172,7 @@ def create_orchestrator_app(
                 mcp_server_url=mcp_server_url,
             )
             app.include_router(web_router)
-            logger.info(f"Web UI enabled at http://{advertise_host}:{port}/web")
+            logger.info(f"Web UI enabled at {config.server.local_base_url}/web")
         except Exception:
             logger.warning("Failed to enable web UI", exc_info=True)
 

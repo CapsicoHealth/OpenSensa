@@ -19,7 +19,9 @@
 Provides:
   - Static file serving + index.html
   - Agent CRUD REST endpoints
-  - Chat session management + SSE streaming
+
+Chat messaging goes directly to the A2A endpoints at /agents/{name}/
+using JSON-RPC message/stream — no server-side session management.
 """
 
 from __future__ import annotations
@@ -31,12 +33,11 @@ from typing import Any, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 from opensensa.config import AppConfig
 from opensensa.orchestrator.agent_registry import AgentRegistry
-from opensensa.web.chat_manager import ChatManager
 
 logger = logging.getLogger("opensensa.web")
 
@@ -48,14 +49,6 @@ _TEMPLATE_DIR = Path(__file__).parent / "templates"
 # ---------------------------------------------------------------------------
 # Pydantic request models
 # ---------------------------------------------------------------------------
-
-class CreateSessionRequest(BaseModel):
-    agent_name: str
-
-
-class SendMessageRequest(BaseModel):
-    message: str
-
 
 class CreateAgentRequest(BaseModel):
     name: str
@@ -86,11 +79,6 @@ def create_web_router(
     """Build and return the web frontend APIRouter."""
 
     router = APIRouter()
-    chat_manager = ChatManager(
-        config=config,
-        registry=registry,
-        mcp_server_url=mcp_server_url,
-    )
     agents_dir = Path(config.agents.directory).resolve()
 
     # -- Static files + index -----------------------------------------------
@@ -259,74 +247,5 @@ def create_web_router(
 
         registry.scan()
         return {"status": "deleted", "name": name}
-
-    # -- Chat sessions -------------------------------------------------------
-
-    @router.post("/api/chat/sessions")
-    async def create_session(req: CreateSessionRequest):
-        """Create a new chat session."""
-        try:
-            session = chat_manager.create_session(req.agent_name)
-            return session.to_dict()
-        except ValueError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-
-    @router.get("/api/chat/sessions")
-    async def list_sessions():
-        """List active chat sessions."""
-        return chat_manager.list_sessions()
-
-    @router.delete("/api/chat/sessions/{session_id}")
-    async def delete_session(session_id: str):
-        """Delete a chat session."""
-        if not chat_manager.delete_session(session_id):
-            raise HTTPException(status_code=404, detail="Session not found")
-        return {"status": "deleted"}
-
-    @router.post("/api/chat/sessions/{session_id}/reset")
-    async def reset_session(session_id: str):
-        """Reset conversation history for a session."""
-        session = chat_manager.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-        session.conversation_history = []
-        return {"status": "reset", "session_id": session_id}
-
-    @router.post("/api/chat/sessions/{session_id}/messages")
-    async def send_message(session_id: str, req: SendMessageRequest, request: Request):
-        """Send a message to the agent. Returns an SSE stream."""
-        session = chat_manager.get_session(session_id)
-        if not session:
-            raise HTTPException(status_code=404, detail="Session not found")
-
-        # Extract context headers declared by the agent from the client request.
-        # e.g. healthbuddy declares X-Document-URL and X-Project — if the
-        # client sends those headers they get forwarded to MCP tool servers.
-        context_headers: dict[str, str] = {}
-        declared = session.agent_def.context_headers
-        logger.info(
-            "send_message: session=%s agent=%s declared_context_headers=%s",
-            session_id, session.agent_def.name, declared,
-        )
-        if declared:
-            for header_name in declared:
-                value = request.headers.get(header_name)
-                logger.info(
-                    "  header %s → %s",
-                    header_name, repr(value),
-                )
-                if value:
-                    context_headers[header_name] = value
-        logger.info("send_message: resolved context_headers=%s", context_headers)
-
-        return StreamingResponse(
-            chat_manager.send_message(session_id, req.message, context_headers=context_headers or None),
-            media_type="text/event-stream; charset=utf-8",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "X-Accel-Buffering": "no",
-            },
-        )
 
     return router

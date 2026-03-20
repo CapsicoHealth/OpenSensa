@@ -134,6 +134,19 @@ def init(directory: str):
         )
         click.echo(f"  [created] .env")
 
+    # --- Ensure .env is in .gitignore ---
+    gitignore_file = project_dir / ".gitignore"
+    env_entry = ".env"
+    needs_add = True
+    if gitignore_file.exists():
+        lines = gitignore_file.read_text(encoding="utf-8").splitlines()
+        # Check for an explicit .env entry (not .env/ or .env* which mean something else)
+        needs_add = not any(line.strip() == env_entry for line in lines)
+    if needs_add:
+        with gitignore_file.open("a", encoding="utf-8") as f:
+            f.write("\n# OpenSensa — never commit secrets\n.env\n")
+        click.echo(f"  [updated] .gitignore — added .env")
+
     click.echo()
     click.echo("Done! Next steps:")
     click.echo(f"  cd {project_dir}")
@@ -215,8 +228,7 @@ def _start_orchestrator(config, reload: bool = False, enable_web: bool = True):
     for name in registry.agent_names():
         click.echo(f"  /agents/{name}/")
     if enable_web:
-        advertise_host = "localhost" if config.server.host == "0.0.0.0" else config.server.host
-        click.echo(f"  Web UI: http://{advertise_host}:{config.server.orchestrator_port}/web")
+        click.echo(f"  Web UI: {config.server.local_base_url}/web")
 
     app = create_orchestrator_app(config, registry, mcp_server_url=mcp_server_url, enable_web=enable_web)
 
@@ -245,8 +257,7 @@ def _start_both(config, reload: bool = False, enable_web: bool = True):
     for name in agent_names:
         click.echo(f"    /agents/{name}/")
     if enable_web:
-        advertise_host = "localhost" if config.server.host == "0.0.0.0" else config.server.host
-        click.echo(f"  Web UI: http://{advertise_host}:{config.server.orchestrator_port}/web")
+        click.echo(f"  Web UI: {config.server.local_base_url}/web")
     click.echo()
 
     mcp_proc = multiprocessing.Process(
@@ -552,22 +563,15 @@ def _register_framework_tools(mcp, config):
 
     remote_agents = [{"url": ra.url} for ra in config.remote_agents]
 
-    # Build local base URL so discover_agents can return reachable URLs
-    advertise_host = "localhost" if config.server.host == "0.0.0.0" else config.server.host
-    local_base_url = f"http://{advertise_host}:{config.server.orchestrator_port}"
-
     # Import and register each framework tool
-    from opensensa.framework_tools import discover_agents, send_to_agent, create_agent, edit_agent, delete_agent, list_tools
+    from opensensa.framework_tools import discover_agents, create_agent, edit_agent, delete_agent, list_tools
 
     discover_agents.register(
         mcp,
         agent_registry=registry,
         remote_agents=remote_agents,
-        local_base_url=local_base_url,
+        local_base_url=config.server.local_base_url,
     )
-    send_to_agent.register(mcp)
-    # NOTE: delegate is NOT registered on MCP — it is a native FunctionTool
-    # wired directly into the Agent by agent_builder.py (A2A, not MCP).
     create_agent.register(mcp, agents_directory=config.agents.directory)
     edit_agent.register(mcp, agents_directory=config.agents.directory)
     delete_agent.register(mcp, agents_directory=config.agents.directory)

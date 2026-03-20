@@ -46,6 +46,12 @@ class ServerConfig(BaseModel):
     orchestrator_port: int = 8000
     mcp_port: int = 8001
 
+    @property
+    def local_base_url(self) -> str:
+        """Base URL for reaching the local A2A server (e.g. from delegate, discover_agents)."""
+        host = "localhost" if self.host == "0.0.0.0" else self.host
+        return f"http://{host}:{self.orchestrator_port}"
+
 class AgentsConfig(BaseModel):
     """Agents directory settings."""
     directory: str = "./agents/"

@@ -270,10 +270,11 @@ async def _try_stream_delegation(
 
 
 async def _delegate_impl(
-    agent_name: str,
     message: str,
     *,
-    allowed_sub_agents: list[str],
+    agent_name: str | None = None,
+    agent_url: str | None = None,
+    allowed_sub_agents: list[str] | None = None,
     from_agent_name: str = "unknown",
     agent_registry=None,
     local_base_url: str = "http://localhost:8000",
@@ -283,12 +284,22 @@ async def _delegate_impl(
     client_request_id: str | None = None,
     context_headers: dict[str, str] | None = None,
 ) -> str:
-    """Core delegation logic — sends an A2A ``message/send`` to a sub-agent.
+    """Core delegation logic — sends an A2A request to another agent.
+
+    Accepts either ``agent_name`` (resolved via registry) or ``agent_url``
+    (used directly).  When ``agent_name`` is provided and the caller has a
+    ``sub_agents`` allowlist, the name is validated against it.
 
     Returns a JSON string (the Agents SDK expects function tools to return str).
     """
-    # Validate that the target agent is in the caller's sub_agents list
-    if agent_name not in allowed_sub_agents:
+    if not agent_name and not agent_url:
+        return json.dumps({
+            "status": "error",
+            "error": "Either 'agent_name' or 'agent_url' must be provided.",
+        })
+
+    # When using name-based delegation with an allowlist, enforce it
+    if agent_name and allowed_sub_agents and agent_name not in allowed_sub_agents:
         return json.dumps({
             "status": "error",
             "error": (
@@ -299,9 +310,10 @@ async def _delegate_impl(
 
     # Enforce depth limit
     if current_depth >= MAX_DELEGATION_DEPTH:
+        target = agent_name or agent_url
         logger.warning(
             f"Delegation depth limit reached ({current_depth}/{MAX_DELEGATION_DEPTH}). "
-            f"Refusing to delegate to '{agent_name}'."
+            f"Refusing to delegate to '{target}'."
         )
         return json.dumps({
             "status": "error",
@@ -312,24 +324,32 @@ async def _delegate_impl(
             ),
         })
 
-    # Resolve agent name → URL
-    agent_url = _resolve_agent_url(
-        agent_name,
-        agent_registry=agent_registry,
-        local_base_url=local_base_url,
-        remote_agents=remote_agents,
-    )
-    if not agent_url:
-        return json.dumps({
-            "status": "error",
-            "error": (
-                f"Agent '{agent_name}' not found. "
-                f"Make sure it exists as a local or remote agent."
-            ),
-        })
+    # Resolve target — either from name or direct URL
+    if agent_url:
+        resolved_url = agent_url.rstrip("/")
+        # Derive a display name from the URL if no name given
+        if not agent_name:
+            agent_name = resolved_url.rstrip("/").split("/")[-1] or "remote-agent"
+    else:
+        resolved_url_or_none = _resolve_agent_url(
+            agent_name,
+            agent_registry=agent_registry,
+            local_base_url=local_base_url,
+            remote_agents=remote_agents,
+        )
+        if not resolved_url_or_none:
+            return json.dumps({
+                "status": "error",
+                "error": (
+                    f"Agent '{agent_name}' not found. "
+                    f"Make sure it exists as a local or remote agent, "
+                    f"or provide an agent_url instead."
+                ),
+            })
+        resolved_url = resolved_url_or_none
 
     # Build A2A request parameters
-    a2a_endpoint = f"{agent_url.rstrip('/')}/"
+    a2a_endpoint = f"{resolved_url}/"
 
     # Immediately show the delegation target in the call graph
     if call_graph is not None:
@@ -362,7 +382,7 @@ async def _delegate_impl(
     if client_request_id:
         headers["X-A2A-Client-Request-Id"] = client_request_id
 
-    # ---- Try streaming first for real-time sub-agent visibility ----
+    # ---- Stream delegation via A2A message/stream ----
     try:
         stream_tools, stream_result = await _try_stream_delegation(
             a2a_endpoint, params, headers,
@@ -381,53 +401,6 @@ async def _delegate_impl(
             call_graph, agent_name, response=delegate_response
         )
         return json.dumps(response)
-    except Exception as exc:
-        logger.warning(
-            f"Streaming delegation to '{agent_name}' failed ({type(exc).__name__}: {exc}), "
-            "falling back to sync message/send"
-        )
-
-    # ---- Sync fallback (message/send) ----
-    payload = {
-        "jsonrpc": "2.0",
-        "id": client_request_id or str(uuid.uuid4()),
-        "method": "message/send",
-        "params": params,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=_A2A_TIMEOUT) as client:
-            resp = await client.post(a2a_endpoint, json=payload, headers=headers)
-            resp.raise_for_status()
-            result = resp.json()
-
-            if "error" in result:
-                return json.dumps({"status": "error", "error": result["error"]})
-
-            # Extract tool call trace from execution-trace artifact if present
-            tools_used: list[dict] = []
-            task_result = result.get("result", {})
-            for artifact in task_result.get("artifacts", []):
-                aname = artifact.get("name", "")
-                if aname.endswith("-execution-trace"):
-                    for part in artifact.get("parts", []):
-                        if part.get("kind") == "data":
-                            data = part.get("data", {})
-                            tools_used = data.get("tools_used", [])
-
-            response: dict[str, Any] = {
-                "status": "success",
-                "agent": agent_name,
-                "result": task_result,
-            }
-            if tools_used:
-                response["tools_used"] = tools_used
-
-            delegate_response = _extract_response_text(task_result)
-            await _notify_delegation_end(
-                call_graph, agent_name, response=delegate_response
-            )
-            return json.dumps(response)
 
     except httpx.TimeoutException:
         await _notify_delegation_end(
@@ -459,10 +432,20 @@ def build_delegate_tool(
     context_headers: dict[str, str] | None = None,
     current_depth: int = 0,
 ):
-    """Build a native ``FunctionTool`` for delegating to sub-agents.
+    """Build a native ``FunctionTool`` for delegating to other agents.
+
+    Supports two modes:
+
+    * **By name** — provide ``agent_name``.  If the calling agent declares
+      ``sub_agents``, the name must be in that allowlist.  Resolved to a URL
+      via the local ``AgentRegistry`` or ``remote_agents`` config.
+    * **By URL** — provide ``agent_url``.  Used for ad-hoc communication
+      with agents discovered at runtime (e.g. via ``discover_agents``).
+
+    Both modes share the same streaming, call-graph, and depth-limit logic.
 
     Args:
-        agent_def: The calling agent's ``AgentDefinition`` (used to read ``sub_agents``).
+        agent_def: The calling agent's ``AgentDefinition``.
         agent_registry: ``AgentRegistry`` for resolving local agent names.
         local_base_url: Base URL of the local A2A server.
         remote_agents: List of ``{"url": "...", "name": "..."}`` for remote agents.
@@ -475,15 +458,16 @@ def build_delegate_tool(
     """
     from agents import FunctionTool
 
-    allowed = list(agent_def.sub_agents)
+    allowed = list(agent_def.sub_agents) if agent_def.sub_agents else []
 
     async def _on_invoke(ctx, args_json: str) -> str:
         """Invoked by the Agents SDK when the LLM calls the delegate tool."""
         args = json.loads(args_json)
         return await _delegate_impl(
-            agent_name=args["agent_name"],
             message=args["message"],
-            allowed_sub_agents=allowed,
+            agent_name=args.get("agent_name"),
+            agent_url=args.get("agent_url"),
+            allowed_sub_agents=allowed or None,
             from_agent_name=agent_def.name,
             agent_registry=agent_registry,
             local_base_url=local_base_url,
@@ -494,28 +478,51 @@ def build_delegate_tool(
             context_headers=context_headers,
         )
 
+    # Build a description that reflects available modes
+    if allowed:
+        desc = (
+            "Delegate a task to another agent. "
+            f"Known sub-agents (by name): {allowed}. "
+            "You can also delegate to any agent by URL (e.g. from discover_agents). "
+            "Provide either agent_name or agent_url, plus a message."
+        )
+    else:
+        desc = (
+            "Send a task to another agent. "
+            "Use discover_agents to find available agents, then provide "
+            "agent_name (for local/configured agents) or agent_url (for "
+            "any agent). Returns the agent's response as JSON."
+        )
+
     return FunctionTool(
         name="delegate",
-        description=(
-            "Delegate a task to a sub-agent by name. "
-            f"Available sub-agents: {allowed}. "
-            "Returns the agent's response as JSON."
-        ),
+        description=desc,
         params_json_schema={
             "type": "object",
             "properties": {
                 "agent_name": {
                     "type": "string",
-                    "description": f"Name of the sub-agent to delegate to. Must be one of: {allowed}",
+                    "description": (
+                        "Name of the agent to delegate to. "
+                        + (f"Known sub-agents: {allowed}. " if allowed else "")
+                        + "Use this for local or configured agents."
+                    ),
+                },
+                "agent_url": {
+                    "type": "string",
+                    "description": (
+                        "Full A2A URL of the agent (e.g. http://host:port/agents/name). "
+                        "Use this for agents discovered at runtime."
+                    ),
                 },
                 "message": {
                     "type": "string",
-                    "description": "The task or message to send to the sub-agent.",
+                    "description": "The task or message to send to the agent.",
                 },
             },
-            "required": ["agent_name", "message"],
+            "required": ["message"],
             "additionalProperties": False,
         },
         on_invoke_tool=_on_invoke,
-        strict_json_schema=True,
+        strict_json_schema=False,
     )

@@ -16,9 +16,9 @@
 
 """Framework-provided tools.
 
-MCP tools (registered on the MCP server): discover_agents, send_to_agent,
+MCP tools (registered on the MCP server): discover_agents,
 create_agent, edit_agent, delete_agent, list_tools.
 
 Native tools (attached directly to Agent objects): delegate — uses A2A
-for agent-to-agent communication, bypassing MCP entirely.
+for agent-to-agent communication (by name or URL), bypassing MCP entirely.
 """

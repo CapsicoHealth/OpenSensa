@@ -16,7 +16,7 @@
 
 """Tests for framework-provided MCP tools.
 
-Tests: create_agent, edit_agent, delete_agent, delegate, discover_agents, send_to_agent, list_tools.
+Tests: create_agent, edit_agent, delete_agent, delegate, discover_agents, list_tools.
 """
 
 import re
@@ -238,56 +238,73 @@ class TestDiscoverAgents:
 
 
 # ---------------------------------------------------------------------------
-# send_to_agent tests
+# delegate by URL tests (replaces send_to_agent)
 # ---------------------------------------------------------------------------
 
-class TestSendToAgent:
-    @pytest.mark.asyncio
-    async def test_depth_limit_enforced(self, fake_mcp):
-        from opensensa.framework_tools.send_to_agent import register, MAX_A2A_DEPTH
-        register(fake_mcp)
+class TestDelegateByUrl:
+    """Tests for URL-based delegation (the unified delegate tool)."""
 
-        send_fn = fake_mcp.get_tool("send_to_agent")
-        result = await send_fn(
-            agent_url="http://localhost:9000",
+    @pytest.mark.asyncio
+    async def test_delegate_by_url_depth_limit(self):
+        from opensensa.framework_tools.delegate import _delegate_impl, MAX_DELEGATION_DEPTH
+
+        result_json = await _delegate_impl(
             message="Hello",
-            current_depth=MAX_A2A_DEPTH,
+            agent_url="http://localhost:9000/agents/remote",
+            current_depth=MAX_DELEGATION_DEPTH,
         )
 
+        import json
+        result = json.loads(result_json)
         assert result["status"] == "error"
         assert "depth limit" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_depth_below_limit_proceeds(self, fake_mcp):
-        """Depth below limit should attempt the request (will fail on connection)."""
-        from opensensa.framework_tools.send_to_agent import register
-        register(fake_mcp)
+    async def test_delegate_by_url_attempts_connection(self):
+        """URL-based delegation below depth limit should attempt the request."""
+        from opensensa.framework_tools.delegate import _delegate_impl
 
-        send_fn = fake_mcp.get_tool("send_to_agent")
-        result = await send_fn(
-            agent_url="http://127.0.0.1:1",  # unreachable
+        result_json = await _delegate_impl(
             message="Hello",
+            agent_url="http://127.0.0.1:1/agents/remote",
             current_depth=0,
         )
 
+        import json
+        result = json.loads(result_json)
         # Should get a connection error, not a depth error
         assert result["status"] == "error"
         assert "depth limit" not in result.get("error", "").lower()
 
     @pytest.mark.asyncio
-    async def test_timeout_handling(self, fake_mcp):
-        """Timeout should return a clean error."""
-        from opensensa.framework_tools.send_to_agent import register
-        register(fake_mcp)
+    async def test_delegate_by_url_skips_allowlist(self):
+        """URL-based delegation should not require an allowlist."""
+        from opensensa.framework_tools.delegate import _delegate_impl
 
-        send_fn = fake_mcp.get_tool("send_to_agent")
-        # Use unreachable address — will either timeout or connection error
-        result = await send_fn(
-            agent_url="http://192.0.2.1",  # TEST-NET, guaranteed unroutable
+        result_json = await _delegate_impl(
             message="Hello",
+            agent_url="http://127.0.0.1:1/agents/remote",
+            allowed_sub_agents=None,
+            current_depth=0,
         )
 
+        import json
+        result = json.loads(result_json)
+        # Should try to connect (and fail), not reject on allowlist
         assert result["status"] == "error"
+        assert "sub_agents" not in result.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_delegate_requires_name_or_url(self):
+        """Delegation with neither name nor URL should error."""
+        from opensensa.framework_tools.delegate import _delegate_impl
+
+        result_json = await _delegate_impl(message="Hello")
+
+        import json
+        result = json.loads(result_json)
+        assert result["status"] == "error"
+        assert "agent_name" in result["error"] or "agent_url" in result["error"]
 
 
 # ---------------------------------------------------------------------------
@@ -356,8 +373,8 @@ class TestDelegate:
         from opensensa.framework_tools.delegate import _delegate_impl, MAX_DELEGATION_DEPTH
 
         result_json = await _delegate_impl(
-            agent_name="existing-agent",
             message="Hello",
+            agent_name="existing-agent",
             allowed_sub_agents=["existing-agent"],
             agent_registry=registry,
             local_base_url="http://localhost:8000",
@@ -374,8 +391,8 @@ class TestDelegate:
         from opensensa.framework_tools.delegate import _delegate_impl
 
         result_json = await _delegate_impl(
-            agent_name="nonexistent-agent",
             message="Hello",
+            agent_name="nonexistent-agent",
             allowed_sub_agents=["nonexistent-agent"],
             agent_registry=registry,
             local_base_url="http://localhost:8000",
@@ -392,8 +409,8 @@ class TestDelegate:
         from opensensa.framework_tools.delegate import _delegate_impl
 
         result_json = await _delegate_impl(
-            agent_name="existing-agent",
             message="Hello",
+            agent_name="existing-agent",
             allowed_sub_agents=["some-other-agent"],
             agent_registry=registry,
             local_base_url="http://localhost:8000",
@@ -410,8 +427,8 @@ class TestDelegate:
         from opensensa.framework_tools.delegate import _delegate_impl
 
         result_json = await _delegate_impl(
-            agent_name="existing-agent",
             message="Hello",
+            agent_name="existing-agent",
             allowed_sub_agents=["existing-agent"],
             agent_registry=registry,
             local_base_url="http://127.0.0.1:1",
@@ -423,6 +440,25 @@ class TestDelegate:
         # Should get a connection error, not a "not found" error
         assert result["status"] == "error"
         assert "not found" not in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_delegate_without_allowlist(self, registry):
+        """Delegation by name without an allowlist should resolve and attempt connection."""
+        from opensensa.framework_tools.delegate import _delegate_impl
+
+        result_json = await _delegate_impl(
+            message="Hello",
+            agent_name="existing-agent",
+            allowed_sub_agents=None,
+            agent_registry=registry,
+            local_base_url="http://127.0.0.1:1",
+        )
+
+        import json
+        result = json.loads(result_json)
+        # Should attempt connection, not reject on allowlist
+        assert result["status"] == "error"
+        assert "sub_agents" not in result.get("error", "")
 
     def test_build_delegate_tool_returns_function_tool(self):
         """build_delegate_tool should return a FunctionTool with correct metadata."""
@@ -436,6 +472,19 @@ class TestDelegate:
         assert tool.name == "delegate"
         assert "analyst" in tool.description
         assert "writer" in tool.description
+
+    def test_build_delegate_tool_without_sub_agents(self):
+        """build_delegate_tool with no sub_agents should still return a working tool."""
+        from opensensa.framework_tools.delegate import build_delegate_tool
+        from agents import FunctionTool
+
+        agent_def = self._make_agent_def(sub_agents=[])
+        tool = build_delegate_tool(agent_def)
+
+        assert isinstance(tool, FunctionTool)
+        assert tool.name == "delegate"
+        # Should mention URL-based delegation
+        assert "url" in tool.description.lower() or "discover" in tool.description.lower()
 
 
 # ---------------------------------------------------------------------------

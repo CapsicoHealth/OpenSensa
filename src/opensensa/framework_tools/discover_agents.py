@@ -45,7 +45,7 @@ def register(
         description=(
             "Discover available AI agents — both local and remote. Returns agent names, "
             "descriptions, skills, and capabilities. Use this to find agents that can "
-            "handle specific tasks before delegating with send_to_agent."
+            "handle specific tasks before delegating with the delegate tool."
         ),
         tags=["framework", "a2a", "discovery"],
     )

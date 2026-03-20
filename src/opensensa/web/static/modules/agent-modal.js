@@ -104,15 +104,15 @@ export class AgentModal {
         this._overlay.innerHTML = MODAL_TEMPLATE;
         containerEl.appendChild(this._overlay);
 
-        const ref = (/** @type {string} */ n) => /** @type {HTMLElement} */ (this._overlay.querySelector(`[data-ref="${n}"]`));
-        this._title    = ref("modal-title");
-        this._form     = /** @type {HTMLFormElement} */ (ref("agent-form"));
-        this._afName   = /** @type {HTMLInputElement} */ (ref("af-name"));
-        this._afDesc   = /** @type {HTMLInputElement} */ (ref("af-desc"));
+        const ref = (/** @type {string} */ n) => /** @type {HTMLElement} */(this._overlay.querySelector(`[data-ref="${n}"]`));
+        this._title = ref("modal-title");
+        this._form = /** @type {HTMLFormElement} */ (ref("agent-form"));
+        this._afName = /** @type {HTMLInputElement} */ (ref("af-name"));
+        this._afDesc = /** @type {HTMLInputElement} */ (ref("af-desc"));
         this._afPrompt = /** @type {HTMLTextAreaElement} */ (ref("af-prompt"));
-        this._afModel  = /** @type {HTMLInputElement} */ (ref("af-model"));
-        this._afTools  = /** @type {HTMLInputElement} */ (ref("af-tools"));
-        this._afSubs   = /** @type {HTMLInputElement} */ (ref("af-subs"));
+        this._afModel = /** @type {HTMLInputElement} */ (ref("af-model"));
+        this._afTools = /** @type {HTMLInputElement} */ (ref("af-tools"));
+        this._afSubs = /** @type {HTMLInputElement} */ (ref("af-subs"));
         this._afSubmit = ref("af-submit");
         this._afDelete = ref("af-delete");
 

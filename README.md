@@ -24,7 +24,7 @@ Most agent frameworks require you to learn complex SDKs, write pages of boilerpl
 | **Tool integration is fragmented** | Tools are served over **[MCP](https://modelcontextprotocol.io/)** (Model Context Protocol). Write a Python function, decorate it, drop the file in a folder. Done. |
 | **Locked to one LLM provider** | Works with **any OpenAI-compatible endpoint** — OpenAI, Ollama, vLLM, LM Studio, Together, Groq, Fireworks, and more. Switch models by editing one line in YAML. |
 | **No observability out of the box** | Built-in **live call graph** in the terminal, **structured JSON logging**, and a **web UI** with real-time delegation tree visualization. |
-| **Hard to go from prototype to production** | `opensensa chat` for development, `opensensa serve` for production. Same architecture, same agents, same tools. |
+| **Hard to go from prototype to production** | `uv run opensensa chat` for development, `uv run opensensa serve` for production. Same architecture, same agents, same tools. |
 
 ## Key Features
 
@@ -33,7 +33,7 @@ Most agent frameworks require you to learn complex SDKs, write pages of boilerpl
 - **Built-in Agent Manager** — Ships with a meta-agent that can create, edit, and delete other agents conversationally. Start a project, chat with the Agent Manager, and build your agent fleet without touching a file.
 - **Explicit Delegation Graph** — Agents declare `sub_agents` in frontmatter. You can see exactly which agents can talk to which just by reading the `.md` files. Depth-limited (max 5 hops) to prevent infinite loops.
 - **Live Call Graph** — Real-time Rich terminal tree showing tool calls (🔧), delegations (🤖), and LLM invocations (💬) with timing and token counts as they happen.
-- **Web UI** — `opensensa serve --web` provides a browser-based chat interface with an agent sidebar, real-time delegation tree visualization, and agent CRUD.
+- **Web UI** — `uv run opensensa serve` provides a browser-based chat interface with an agent sidebar, real-time delegation tree visualization, and agent CRUD.
 - **Auto-Discovery** — Tools are auto-loaded from a directory; agents are scanned from the filesystem. Drop a file in, it's live — no restart needed.
 - **Any LLM** — Single `OpenAIChatCompletionsModel` path works with any provider exposing `/v1/chat/completions`.
 - **Structured Tracing** — Every LLM call, tool invocation, and delegation is logged as structured JSON with timing and token usage.
@@ -46,7 +46,7 @@ Most agent frameworks require you to learn complex SDKs, write pages of boilerpl
 mkdir my-project && cd my-project
 uv init
 uv add opensensa
-opensensa init .
+uv run opensensa init .
 ```
 
 This gives you a project with your own `pyproject.toml` and `uv.lock`, plus the OpenSensa scaffold:
@@ -122,7 +122,7 @@ No API key needed — just point `base_url` at your local endpoint.
 ### Start Chatting
 
 ```bash
-opensensa chat
+uv run opensensa chat
 ```
 
 This starts the MCP + A2A servers in the background, presents an agent picker, and drops you into an interactive Rich terminal session. All agents are live and can call each other over A2A.
@@ -130,7 +130,7 @@ This starts the MCP + A2A servers in the background, presents an agent picker, a
 ### Run as a Service
 
 ```bash
-opensensa serve
+uv run opensensa serve
 ```
 
 Headless mode — starts MCP tool server + A2A agent server. Each agent gets its own endpoint:
@@ -329,15 +329,15 @@ logging:
 
 | Command | Description |
 |---|---|
-| `opensensa init [dir]` | Scaffold a new project with config, agents, and sample tools |
-| `opensensa chat [agent-name]` | Interactive Rich TUI — starts servers, opens a conversation |
-| `opensensa serve` | Start MCP + A2A servers in headless mode |
-| `opensensa serve --web` | Headless mode with browser-based web UI at `/web` |
-| `opensensa add-tool <name>` | Generate a tool skeleton in `tools/` |
-| `opensensa add-agent <name>` | Generate an agent skeleton in `agents/` |
-| `opensensa list-tools` | List all registered MCP tools |
-| `opensensa list-agents` | List all agents (local + remote) |
-| `opensensa test` | Smoke test — validates config, agents, and tools |
+| `uv run opensensa init [dir]` | Scaffold a new project with config, agents, and sample tools |
+| `uv run opensensa chat [agent-name]` | Interactive Rich TUI — starts servers, opens a conversation |
+| `uv run opensensa serve` | Start MCP + A2A servers in headless mode |
+| `uv run opensensa serve --web` | Headless mode with browser-based web UI at `/web` |
+| `uv run opensensa add-tool <name>` | Generate a tool skeleton in `tools/` |
+| `uv run opensensa add-agent <name>` | Generate an agent skeleton in `agents/` |
+| `uv run opensensa list-tools` | List all registered MCP tools |
+| `uv run opensensa list-agents` | List all agents (local + remote) |
+| `uv run opensensa test` | Smoke test — validates config, agents, and tools |
 
 ## Architecture
 
@@ -383,7 +383,7 @@ Because OpenSensa agents are A2A-compliant servers, they interoperate with any A
 
 ## Web UI
 
-Run `opensensa serve --web` and open `http://localhost:8000/web`:
+Run `uv run opensensa serve` and open `http://localhost:8000/web`:
 
 - **Agent sidebar** — compact cards for all agents, click to start a chat
 - **Real-time chat** — streaming responses with tool call animations
@@ -487,7 +487,7 @@ OpenSensa is a **local-first framework** — it runs on your machine, and you co
 - **API keys are your responsibility.** Store keys in `.env` files (gitignored by default) or environment variables — never hard-code them in `opensensa.yaml` or agent files.
 - **Tools execute arbitrary code.** Custom tools in your `tools/` directory run with the same permissions as the OpenSensa process. Only run tools you trust. Review any third-party tool code before adding it to your project.
 - **Agent-generated code is not sandboxed.** If an agent or tool generates and executes code, it runs with full local permissions. Exercise caution with tools that perform file system operations, network calls, or shell commands.
-- **Network exposure in serve mode.** `opensensa serve` binds to `0.0.0.0` by default, exposing agent endpoints on your network. For local-only use, set `server.host: 127.0.0.1` in `opensensa.yaml`. There is no built-in authentication — do not expose to the public internet without adding your own auth layer (reverse proxy, API gateway, etc.).
+- **Network exposure in serve mode.** `uv run opensensa serve` binds to `0.0.0.0` by default, exposing agent endpoints on your network. For local-only use, set `server.host: 127.0.0.1` in `opensensa.yaml`. There is no built-in authentication — do not expose to the public internet without adding your own auth layer (reverse proxy, API gateway, etc.).
 
 ### Cost
 

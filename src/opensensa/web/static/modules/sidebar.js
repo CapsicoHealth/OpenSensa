@@ -85,7 +85,7 @@ export class Sidebar {
         // Close expanded sidebar when clicking outside
         this._on(document, "click", (/** @type {MouseEvent} */ e) => {
             if (!this._sidebarEl.classList.contains("expanded")) return;
-            if (!this._sidebarEl.contains(/** @type {Node} */ (e.target))) {
+            if (!this._sidebarEl.contains(/** @type {Node} */(e.target))) {
                 this._sidebarEl.classList.remove("expanded");
             }
         });

@@ -118,25 +118,24 @@ async def build_agent(
     # Build native function tools (non-MCP)
     native_tools: list[Any] = []
 
-    # If agent declares sub_agents, add the delegate tool as a native FunctionTool.
-    # This calls sub-agents over A2A directly — no MCP timeout issues.
-    if agent_def.sub_agents:
-        from opensensa.framework_tools.delegate import build_delegate_tool
+    # Always attach the delegate tool as a native FunctionTool.
+    # When the agent declares sub_agents, delegation is restricted to that
+    # allowlist.  Otherwise, the agent can delegate to any agent by name
+    # (via registry) or URL (e.g. discovered via discover_agents).
+    # Delegation calls sub-agents over A2A directly — no MCP timeout issues.
+    from opensensa.framework_tools.delegate import build_delegate_tool
 
-        advertise_host = "localhost" if config.server.host == "0.0.0.0" else config.server.host
-        local_base_url = f"http://{advertise_host}:{config.server.orchestrator_port}"
-
-        delegate_tool = build_delegate_tool(
-            agent_def,
-            agent_registry=agent_registry,
-            local_base_url=local_base_url,
-            remote_agents=remote_agents,
-            call_graph=call_graph,
-            client_request_id=client_request_id,
-            context_headers=context_headers,
-            current_depth=current_depth,
-        )
-        native_tools.append(delegate_tool)
+    delegate_tool = build_delegate_tool(
+        agent_def,
+        agent_registry=agent_registry,
+        local_base_url=config.server.local_base_url,
+        remote_agents=remote_agents,
+        call_graph=call_graph,
+        client_request_id=client_request_id,
+        context_headers=context_headers,
+        current_depth=current_depth,
+    )
+    native_tools.append(delegate_tool)
 
     # Build agent
     agent = Agent(
