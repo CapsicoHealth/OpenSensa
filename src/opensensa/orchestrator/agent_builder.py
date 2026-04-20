@@ -78,13 +78,32 @@ async def build_agent(
 
     # MCP is only needed for tools — delegation uses native function tools
     mcp_servers = []
+    # Build tool filter if agent specifies specific tools (must be done before
+    # creating the MCP server so we can pass it to MCPServerStreamableHttp directly).
+    tool_filter = None
+    if agent_def.tools:
+        allowed = set(agent_def.tools)
+        try:
+            from agents.mcp import create_static_tool_filter
+            tool_filter = create_static_tool_filter(list(allowed))
+        except ImportError:
+            def tool_filter(tool) -> bool:  # type: ignore[misc]
+                name = getattr(tool, "name", None) or getattr(tool, "function", {}).get("name", "")
+                return name in allowed
+
     if agent_def.tools:
         mcp_server = MCPServerStreamableHttp(
             params={
                 "url": mcp_server_url,
-                "timeout": 30,           # tool calls like document_search can take >5s
+                "timeout": 300,          # tool calls like document_search can take >5s
                 **({"headers": headers} if headers else {}),
             },
+            client_session_timeout_seconds=300,
+            # Unique name prevents the SDK from sharing cached tool lists
+            # across differently-filtered connections within the same process.
+            name=f"MCP-{agent_def.name}",
+            # Pass filter directly to the server — this is where the SDK enforces it.
+            **({"tool_filter": tool_filter}) if tool_filter else {},
         )
         mcp_servers.append(mcp_server)
 
@@ -97,23 +116,6 @@ async def build_agent(
                     f"Failed to connect to MCP server at {mcp_server_url}: {exc}. "
                     "Verify the URL is correct and the server is running."
                 ) from exc
-
-    # Build tool filter if agent specifies specific tools
-    tool_filter = None
-    if agent_def.tools:
-        allowed = set(agent_def.tools)
-
-        def _tool_filter(tool) -> bool:
-            """Only allow tools listed in the agent definition."""
-            name = getattr(tool, "name", None) or getattr(tool, "function", {}).get("name", "")
-            return name in allowed
-
-        # Use static tool filter from agents SDK if available
-        try:
-            from agents.mcp import create_static_tool_filter
-            tool_filter = create_static_tool_filter(list(allowed))
-        except ImportError:
-            tool_filter = _tool_filter
 
     # Build native function tools (non-MCP)
     native_tools: list[Any] = []
@@ -137,16 +139,25 @@ async def build_agent(
     )
     native_tools.append(delegate_tool)
 
+    # Substitute context_headers values into the system prompt so that
+    # placeholders like {cohort_refnum} are resolved before the LLM sees them.
+    # The header name is lowercased and the "X-" prefix is stripped to derive
+    # the placeholder key: "X-Cohort-Refnum" → "cohort_refnum".
+    resolved_prompt = agent_def.system_prompt
+    substitutions = context_headers or {}
+    if mcp_headers:
+        substitutions = {**mcp_headers, **substitutions}
+    for header_key, header_value in substitutions.items():
+        placeholder = header_key.lstrip("X-").lstrip("x-").replace("-", "_").lower()
+        resolved_prompt = resolved_prompt.replace("{" + placeholder + "}", str(header_value))
+
     # Build agent
     agent = Agent(
         name=agent_def.name,
-        instructions=agent_def.system_prompt,
+        instructions=resolved_prompt,
         model=model,
         tools=native_tools,
         mcp_servers=mcp_servers,
-        mcp_config={
-            "tool_filter": tool_filter,
-        } if tool_filter else {},
     )
 
     logger.info(f"Built agent: {agent_def.name} (model={agent_def.model}, tools={agent_def.tools}, sub_agents={agent_def.sub_agents})")
