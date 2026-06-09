@@ -269,6 +269,97 @@ async def _try_stream_delegation(
     return tools_used, {"artifacts": artifacts}
 
 
+async def _run_ephemeral_in_process(
+    agent_name: str,
+    message: str,
+    *,
+    agent_registry,
+    app_config,
+    mcp_server_url: str,
+    context_headers: dict[str, str] | None,
+    remote_agents: list[dict] | None,
+    call_graph,
+    client_request_id: str | None,
+    current_depth: int,
+) -> str:
+    """Run an ephemeral agent in-process instead of via an HTTP call.
+
+    Ephemeral agents have no mounted sub-app, so delegating via HTTP would yield
+    a 404.  Instead we build the agent directly with ``build_agent()`` and run it
+    in the same process, reusing the same EphemeralRegistry so that nested
+    ephemeral sub-agents of ephemeral sub-agents also take this path.
+    """
+    import time as _time
+    from contextlib import AsyncExitStack
+    from agents import Runner
+    from opensensa.orchestrator.agent_builder import build_agent
+
+    _start = _time.time()
+
+    agent_def = agent_registry.get(agent_name)
+    if agent_def is None:
+        return json.dumps({
+            "status": "error",
+            "error": f"Ephemeral agent '{agent_name}' not found in registry.",
+        })
+
+    mcp_headers: dict[str, str] = {
+        "X-Agent-Id": agent_name,
+        "X-Agent-Depth": str(current_depth),
+    }
+    if context_headers:
+        mcp_headers.update(context_headers)
+
+    try:
+        async with AsyncExitStack() as stack:
+            agent = await build_agent(
+                agent_def=agent_def,
+                config=app_config,
+                mcp_server_url=mcp_server_url,
+                exit_stack=stack,
+                mcp_headers=mcp_headers,
+                agent_registry=agent_registry,
+                remote_agents=remote_agents,
+                call_graph=call_graph,
+                client_request_id=client_request_id,
+                context_headers=context_headers,
+                current_depth=current_depth,
+            )
+            result = await Runner.run(
+                agent,
+                [{"role": "user", "content": message}],
+            )
+        final_text = str(result.final_output) if result.final_output else ""
+        duration_ms = int((_time.time() - _start) * 1000)
+        task_result = {
+            "artifacts": [
+                {
+                    "name": f"{agent_name}-response",
+                    "parts": [{"text": final_text}],
+                }
+            ]
+        }
+        # Structured telemetry log for ephemeral in-process delegations.
+        # No HTTP handler exists for these, so no automatic agenticaccesslog row.
+        logger.info(
+            "EPHEMERAL_DELEGATION_COMPLETE agent=%s depth=%d duration_ms=%d "
+            "status=success response_len=%d",
+            agent_name, current_depth, duration_ms, len(final_text),
+        )
+        return json.dumps({"status": "success", "agent": agent_name, "result": task_result})
+    except Exception as exc:
+        duration_ms = int((_time.time() - _start) * 1000)
+        logger.error(
+            "EPHEMERAL_DELEGATION_COMPLETE agent=%s depth=%d duration_ms=%d "
+            "status=error error=%s",
+            agent_name, current_depth, duration_ms, exc,
+        )
+        return json.dumps({
+            "status": "error",
+            "error": f"In-process execution of '{agent_name}' failed: {exc}",
+        })
+
+
 async def _delegate_impl(
     message: str,
     *,
@@ -283,6 +374,8 @@ async def _delegate_impl(
     call_graph=None,
     client_request_id: str | None = None,
     context_headers: dict[str, str] | None = None,
+    app_config=None,
+    mcp_server_url: str | None = None,
 ) -> str:
     """Core delegation logic — sends an A2A request to another agent.
 
@@ -347,6 +440,43 @@ async def _delegate_impl(
                 ),
             })
         resolved_url = resolved_url_or_none
+
+    # In-process shortcut: ephemeral agents have no mounted sub-app, so an
+    # HTTP call to /agents/{name}/ would return 404. Run the agent directly
+    # in-process using the same EphemeralRegistry so that nested ephemeral
+    # sub-agents of ephemeral sub-agents also take this path recursively.
+    if (
+        agent_name
+        and agent_url is None
+        and app_config is not None
+        and mcp_server_url is not None
+        and hasattr(agent_registry, "is_ephemeral")
+        and agent_registry.is_ephemeral(agent_name)
+    ):
+        logger.info("Delegating to ephemeral agent '%s' in-process (no HTTP)", agent_name)
+        if call_graph is not None:
+            call_graph.update_delegation_target(agent_name)
+        await _notify_delegation_start(call_graph, from_agent_name, agent_name, message=message)
+        result_json = await _run_ephemeral_in_process(
+            agent_name,
+            message,
+            agent_registry=agent_registry,
+            app_config=app_config,
+            mcp_server_url=mcp_server_url,
+            context_headers=context_headers,
+            remote_agents=remote_agents,
+            call_graph=call_graph,
+            client_request_id=client_request_id,
+            current_depth=current_depth + 1,
+        )
+        result_data = json.loads(result_json)
+        delegate_response = (
+            _extract_response_text(result_data.get("result", {}))
+            if result_data.get("status") == "success"
+            else ""
+        )
+        await _notify_delegation_end(call_graph, agent_name, response=delegate_response)
+        return result_json
 
     # Build A2A request parameters
     a2a_endpoint = f"{resolved_url}/"
@@ -431,6 +561,8 @@ def build_delegate_tool(
     client_request_id: str | None = None,
     context_headers: dict[str, str] | None = None,
     current_depth: int = 0,
+    app_config=None,
+    mcp_server_url: str | None = None,
 ):
     """Build a native ``FunctionTool`` for delegating to other agents.
 
@@ -476,6 +608,8 @@ def build_delegate_tool(
             call_graph=call_graph,
             client_request_id=client_request_id,
             context_headers=context_headers,
+            app_config=app_config,
+            mcp_server_url=mcp_server_url,
         )
 
     # Build a description that reflects available modes

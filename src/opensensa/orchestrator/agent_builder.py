@@ -136,6 +136,8 @@ async def build_agent(
         client_request_id=client_request_id,
         context_headers=context_headers,
         current_depth=current_depth,
+        app_config=config,
+        mcp_server_url=mcp_server_url,
     )
     native_tools.append(delegate_tool)
 
