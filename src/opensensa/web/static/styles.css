@@ -1,0 +1,33 @@
+/* ===========================================================================
+ * Copyright (C) 2025 CapsicoHealth Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * =========================================================================== */
+
+/* ── OpenSensa · Barrel stylesheet ─────────────────────────
+ *
+ * Imports all component stylesheets in the correct order.
+ * Each component CSS is self-contained and documents which
+ * design tokens it requires (defined in tokens.css).
+ *
+ * For standalone widget usage, import only tokens.css +
+ * the component CSS you need (e.g. delegation-tree.css).
+ * ───────────────────────────────────────────────────────── */
+
+@import url("css/tokens.css");
+@import url("css/toolbar.css");
+@import url("css/sidebar.css");
+@import url("css/chat.css");
+@import url("css/delegation-tree.css");
+@import url("css/modal.css");
+@import url("css/utilities.css");

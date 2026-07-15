@@ -1,0 +1,303 @@
+/* ===========================================================================
+ * Copyright (C) 2025 CapsicoHealth Inc. — Apache-2.0
+ * =========================================================================== */
+
+/* ── Delegation Tree Panel + Nodes ───────────────────────── */
+/*
+ * Self-contained styles for the DelegationTree widget.
+ *
+ * Required tokens (define on a parent element or use tokens.css):
+ *   --accent, --accent-dark, --accent-light, --accent-muted, --accent-bg,
+ *   --accent-glow, --surface, --surface-alt, --border, --border-light,
+ *   --text, --text-muted, --text-faint, --success, --success-bg,
+ *   --error, --error-bg, --font, --mono, --radius-sm, --radius-xs,
+ *   --shadow-card
+ */
+
+/* ── Link Arrow (between chat and tree) ──────────────────── */
+.tree-link-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    opacity: 0;
+    transition: opacity .3s ease;
+}
+
+.tree-link-arrow.visible {
+    opacity: 1;
+}
+
+/* ── Tree Panel Container ────────────────────────────────── */
+.tree-panel {
+    flex: 0 0 35%;
+    min-width: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.tree-panel-header {
+    padding: 16px 18px 10px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.tree-panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: var(--text-muted);
+}
+
+.tree-panel-hint {
+    display: block;
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.tree-panel .delegation-tree {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px 10px 20px;
+}
+
+.tree-panel .delegation-tree::-webkit-scrollbar {
+    width: 4px;
+}
+
+.tree-panel .delegation-tree::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+/* ── Delegation Tree Layout ──────────────────────────────── */
+.delegation-tree {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    position: relative;
+}
+
+/* ── Delegation Nodes ────────────────────────────────────── */
+.delegation-node {
+    position: relative;
+    margin-top: 0;
+    padding-left: 24px;
+    animation: delegationSlideIn .35s cubic-bezier(.4, 0, .2, 1);
+}
+
+@keyframes delegationSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-12px) scale(.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Vertical connector */
+.delegation-node::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: -16px;
+    width: 2px;
+    height: 32px;
+    background: var(--accent-light);
+}
+
+/* Horizontal connector */
+.delegation-node::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 16px;
+    width: 16px;
+    height: 2px;
+    background: var(--accent-light);
+}
+
+.delegation-connector-arrow {
+    position: absolute;
+    left: 6px;
+    top: 10px;
+    width: 14px;
+    height: 14px;
+    color: var(--accent);
+    z-index: 1;
+}
+
+/* ── Delegation Card ─────────────────────────────────────── */
+.delegation-card {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-card);
+    border: 1.5px solid var(--accent-muted);
+    width: 100%;
+    overflow: hidden;
+    transition: border-color .3s, box-shadow .3s;
+}
+
+.delegation-card.active {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-card), 0 0 0 3px var(--accent-glow);
+}
+
+.delegation-card.completed {
+    border-color: var(--border-light);
+    opacity: .85;
+}
+
+.delegation-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-light);
+    background: var(--accent-bg);
+}
+
+.delegation-card-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+.delegation-card.active .delegation-card-dot {
+    animation: dotBreathe 1.2s ease-in-out infinite;
+}
+
+@keyframes dotBreathe {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: .5;
+        transform: scale(.75);
+    }
+}
+
+.delegation-card.completed .delegation-card-dot {
+    background: var(--success);
+}
+
+.delegation-card-name {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--text);
+    flex: 1;
+    letter-spacing: -.15px;
+}
+
+.delegation-card-from {
+    font-size: 10px;
+    color: var(--accent-dark);
+    font-weight: 500;
+}
+
+.delegation-card-messages {
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.delegation-card-messages::-webkit-scrollbar {
+    width: 3px;
+}
+
+.delegation-card-messages::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.delegation-card-activity {
+    padding: 0 14px;
+}
+
+.delegation-card-activity:not(:empty) {
+    padding: 4px 14px 8px;
+}
+
+.delegation-node .delegation-node {
+    margin-top: 0;
+}
+
+/* ── Tool chips (used inside delegation cards) ───────────── */
+/* Inherits .tool-chip, .spinner from chat.css if present;
+   duplicated here for standalone use. */
+.delegation-card .tool-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 6px;
+    margin: 2px 2px;
+}
+
+.delegation-card .tool-chip.running {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border: 1px solid var(--accent-muted);
+}
+
+.delegation-card .tool-chip.complete {
+    background: var(--success-bg);
+    color: var(--success);
+    border: 1px solid #C6E7D0;
+}
+
+.delegation-card .tool-chip.failed {
+    background: var(--error-bg);
+    color: var(--error);
+    border: 1px solid #F5D0CD;
+}
+
+.delegation-card .tool-chip-icon {
+    font-size: 11px;
+}
+
+.delegation-card .spinner {
+    width: 9px;
+    height: 9px;
+    border: 1.5px solid var(--accent-muted);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .65s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Delegation From Label ───────────────────────────────── */
+.delegation-from-label {
+    font-size: 10.5px;
+    color: var(--accent);
+    font-weight: 600;
+    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}

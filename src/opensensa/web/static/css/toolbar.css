@@ -1,0 +1,83 @@
+/* ===========================================================================
+ * Copyright (C) 2025 CapsicoHealth Inc. — Apache-2.0
+ * =========================================================================== */
+
+/* ── Toolbar ─────────────────────────────────────────────── */
+/* Tokens used: --toolbar-h, --surface, --border-light, --font,
+   --text, --text-mid, --accent, --border, --radius-xs, --surface-hover */
+
+.toolbar {
+    height: var(--toolbar-h);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    gap: 10px;
+    position: relative;
+    z-index: 200;
+    flex-shrink: 0;
+}
+
+.toolbar-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.toolbar-right {
+    margin-left: auto;
+}
+
+.logo {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    letter-spacing: -.3px;
+    user-select: none;
+}
+
+.logo svg {
+    color: var(--accent);
+}
+
+.tool-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xs);
+    background: var(--surface);
+    color: var(--text-mid);
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+
+.tool-btn:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.tool-btn-accent {
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--surface);
+    font-weight: 600;
+}
+
+.tool-btn-accent:hover {
+    background: #2C2B27;
+    border-color: #2C2B27;
+    color: var(--surface);
+}
