@@ -14,17 +14,25 @@
 # limitations under the License.
 # ===========================================================================
 
-"""Simplified model layer — OpenAIChatCompletionsModel only.
+"""Simplified model layer.
 
-Every model goes through AsyncOpenAI(base_url=..., api_key=...) →
-OpenAIChatCompletionsModel. Works with OpenAI, Ollama, vLLM, LM Studio,
-Together, Groq, Fireworks — anything with an OpenAI-compatible endpoint.
+Every model goes through AsyncOpenAI(base_url=..., api_key=...) → either
+OpenAIResponsesModel (for OpenAI's own API) or OpenAIChatCompletionsModel
+(for everything else — Ollama, vLLM, LM Studio, Together, Groq, Fireworks,
+Google — anything with an OpenAI-compatible /chat/completions endpoint).
+
+OpenAI's newer reasoning models (e.g. gpt-5.x) reject the combination of
+``reasoning_effort`` + function tools on ``/v1/chat/completions`` — they
+require ``/v1/responses`` for that. Since the OpenAI Agents SDK defaults
+``model_settings.reasoning`` for gpt-5-family models, calling OpenAI's API
+must go through OpenAIResponsesModel to avoid a 400 error.
 """
 
 import logging
 import os
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from openai import AsyncOpenAI
 
@@ -32,17 +40,31 @@ from opensensa.config import AppConfig, ModelConfig, resolve_model
 
 logger = logging.getLogger("opensensa.orchestrator")
 
+# Hosts that must use the Responses API rather than Chat Completions.
+_RESPONSES_API_HOSTS = {"api.openai.com"}
+
+
+def _requires_responses_api(base_url: str) -> bool:
+    try:
+        return urlparse(base_url).hostname in _RESPONSES_API_HOSTS
+    except ValueError:
+        return False
+
 
 def create_model(model_config: ModelConfig) -> Any:
-    """Create an OpenAIChatCompletionsModel from a ModelConfig.
+    """Create a Model instance from a ModelConfig.
+
+    Uses OpenAIResponsesModel for OpenAI's own API (required for gpt-5-family
+    reasoning models combined with function tools) and
+    OpenAIChatCompletionsModel for every other OpenAI-compatible endpoint.
 
     Args:
         model_config: Resolved model configuration with base_url, api_key, model_name.
 
     Returns:
-        An OpenAIChatCompletionsModel instance ready for use with Agent().
+        A Model instance ready for use with Agent().
     """
-    from agents import OpenAIChatCompletionsModel
+    from agents import OpenAIChatCompletionsModel, OpenAIResponsesModel
 
     api_key = model_config.api_key or ""
 
@@ -68,14 +90,20 @@ def create_model(model_config: ModelConfig) -> Any:
         api_key=api_key,
     )
 
-    model = OpenAIChatCompletionsModel(
-        model=model_config.model_name,
-        openai_client=client,
-    )
+    if _requires_responses_api(model_config.base_url):
+        model = OpenAIResponsesModel(
+            model=model_config.model_name,
+            openai_client=client,
+        )
+    else:
+        model = OpenAIChatCompletionsModel(
+            model=model_config.model_name,
+            openai_client=client,
+        )
 
     logger.info(
         f"Created model: {model_config.model_name} "
-        f"via {model_config.base_url}"
+        f"via {model_config.base_url} ({type(model).__name__})"
     )
     return model
 
